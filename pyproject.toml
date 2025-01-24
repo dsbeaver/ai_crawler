@@ -10,9 +10,11 @@ readme = "README.md"
 license = {file = "LICENSE"}
 authors = [{name = "Dwight Beaver", email = "dsbeav@gmail.com"}]
 dependencies = [
-    "crawl4ai"
+    "crawl4ai",
+    "pydantic",
+    "redis"
 ]
-requires-python = ">=3.6"
+requires-python = ">=3.9"
 
 [project.scripts]
-ai_crawler = "ai_crawler.ai_crawler:main"
+ai_crawler = "ai_crawler.cli:main"
