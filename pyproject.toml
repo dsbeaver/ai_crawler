@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai_crawler"
+version = "0.1.0"
+description = "A new Python package named ai_crawler"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [{name = "Dwight Beaver", email = "dsbeav@gmail.com"}]
+dependencies = [
+    "crawl4ai"
+]
+requires-python = ">=3.6"
+
+[project.scripts]
+ai_crawler = "ai_crawler.ai_crawler:main"

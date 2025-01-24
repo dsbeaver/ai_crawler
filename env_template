@@ -1,0 +1,6 @@
+export CRAWLER_OUTPUT_DIR=""
+export CRAWLER_REDIS_HOST="localhost"
+export CRAWLER_REDIS_PORT=6379
+export CRAWLER_REDIS_QUEUE="url_queue"
+export CRAWLER_FAILED_QUEUE="failed_url_queue"
+export CRAWLER_LOG_FILE=""
