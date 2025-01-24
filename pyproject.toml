@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai_crawler"
-version = "0.1.2"
+version = "0.1.3"
 description = "A new Python package named ai_crawler"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -12,7 +12,8 @@ authors = [{name = "Dwight Beaver", email = "dsbeav@gmail.com"}]
 dependencies = [
     "crawl4ai",
     "pydantic",
-    "redis"
+    "redis",
+    "setuptools"
 ]
 requires-python = ">=3.9"
 
