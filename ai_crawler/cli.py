@@ -3,7 +3,7 @@ import asyncio
 import argparse
 import redis
 import logging
-from ai_crawler import * 
+from ai_crawler.ai_crawler import AICrawler
 import json
 import datetime
 
