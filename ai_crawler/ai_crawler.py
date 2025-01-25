@@ -135,7 +135,7 @@ class AICrawler:
     async def process_url(self, url: str):
         """Process a single URL."""
         print(f"Processing URL: {url}")
-        if url.endswith("sitemap.xml"):
+        if url.endswith(".xml"):
             sitemap_urls = self.fetch_sitemap_urls(url)
             await self.process_urls(sitemap_urls)
         else:
