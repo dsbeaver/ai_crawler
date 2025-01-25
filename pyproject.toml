@@ -10,7 +10,7 @@ readme = "README.md"
 license = {file = "LICENSE"}
 authors = [{name = "Dwight Beaver", email = "dsbeav@gmail.com"}]
 dependencies = [
-    "crawl4ai",
+    "crawl4ai>=0.4.3b2",
     "pydantic",
     "redis",
     "setuptools"

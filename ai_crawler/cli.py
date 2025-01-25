@@ -7,7 +7,6 @@ from ai_crawler.ai_crawler import AICrawler
 import json
 import datetime
 
-
 def parse_args():
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="AI Crawler: Process URLs or run as a daemon.")
@@ -17,6 +16,8 @@ def parse_args():
                         help="Directory to save output JSON files (default: ./output or $CRAWLER_OUTPUT_DIR)")
     parser.add_argument("--project-name", type=str, default=os.getenv("CRAWLER_PROJECT_NAME", "ai_crawler"),
                         help="Name of the project (default: ai_crawler or $CRAWLER_PROJECT_NAME)")
+    parser.add_argument("--max-sessions", type=int, default=int(os.getenv("CRAWLER_MAX_SESSIONS", 5)),
+                        help="Maximum number of concurrent sessions (default: 5 or $CRAWLER_MAX_SESSIONS)")
 
     # Daemon mode arguments
     parser.add_argument("--daemon", action="store_true", help="Run in daemon mode, processing URLs from a Redis queue.")
@@ -36,7 +37,6 @@ def parse_args():
 
     return parser.parse_args()
 
-
 def configure_logging(log_file: str):
     """Set up logging configuration."""
     logging.basicConfig(
@@ -46,12 +46,11 @@ def configure_logging(log_file: str):
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
 
-
-async def daemon_mode(redis_host, redis_port, redis_queue, failed_queue, output_dir, project_name):
+async def daemon_mode(redis_host, redis_port, redis_queue, failed_queue, output_dir, project_name, max_sessions):
     """Run the crawler as a daemon, reading URLs from a Redis queue."""
     logging.info(f"Starting daemon mode with Redis at {redis_host}:{redis_port}, queue: {redis_queue}")
     r = redis.StrictRedis(host=redis_host, port=redis_port, decode_responses=True)
-    crawler = AICrawler(output_dir=output_dir, project_name=project_name)
+    crawler = AICrawler(output_dir=output_dir, project_name=project_name, max_sessions=max_sessions)
 
     while True:
         url = r.rpop(redis_queue)  # Fetch URL from Redis queue
@@ -70,13 +69,11 @@ async def daemon_mode(redis_host, redis_port, redis_queue, failed_queue, output_
         else:
             await asyncio.sleep(1)  # Wait for new URLs to arrive
 
-
-async def command_line_mode(url, output_dir, project_name):
+async def command_line_mode(url, output_dir, project_name, max_sessions):
     """Process a single URL in command-line mode."""
     print(f"Processing URL: {url}")
-    crawler = AICrawler(output_dir=output_dir, project_name=project_name)
+    crawler = AICrawler(output_dir=output_dir, project_name=project_name, max_sessions=max_sessions)
     await crawler.process_url(url)
-
 
 def main():
     args = parse_args()
@@ -93,19 +90,17 @@ def main():
             redis_queue=args.redis_queue,
             failed_queue=args.failed_queue,
             output_dir=args.output_dir,
-            project_name=args.project_name
+            project_name=args.project_name,
+            max_sessions=args.max_sessions
         ))
     elif args.url:
         # Command-line mode
         asyncio.run(command_line_mode(
             url=args.url,
             output_dir=args.output_dir,
-            project_name=args.project_name
+            project_name=args.project_name,
+            max_sessions=args.max_sessions
         ))
     else:
         print("You must specify either --daemon or --url.")
         exit(1)
-
-
-if __name__ == "__main__":
-    main()
