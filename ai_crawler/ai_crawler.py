@@ -5,7 +5,7 @@ from xml.etree import ElementTree
 import asyncio
 import json
 import os
-from datetime import datetime
+import datetime
 import hashlib
 from crawl4ai import AsyncWebCrawler, RateLimiter, CrawlerRunConfig, CacheMode
 from crawl4ai.async_dispatcher import SemaphoreDispatcher
@@ -54,7 +54,7 @@ class AICrawler:
         filename = os.path.join(self.output_dir, f"{hashlib.md5(url.encode()).hexdigest()}.json")
         output = {
             "url": url,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.datetime.now().isoformat(),
             "source": self.project_name,
             "content": content,
             "success": success
