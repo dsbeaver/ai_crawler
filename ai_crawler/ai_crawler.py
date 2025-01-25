@@ -17,15 +17,14 @@ class CrawlerOutput(BaseModel):
     content: str
     success: bool = True  # Defaults to True for successful crawls
 
-class AICrawler(BaseModel):
-    output_dir: str = "./output"
-    project_name: str = "ai_crawler"
-    max_sessions: int = 5
+class AICrawler:
+    def __init__(self, output_dir: str = "./output", project_name: str = "ai_crawler", max_sessions: int = 5):
+        self.output_dir = output_dir
+        self.project_name = project_name
+        self.max_sessions = max_sessions
 
-    def __init__(self, **data):
-        super().__init__(**data)
         self.dispatcher = SemaphoreDispatcher(
-            max_session_permit=self.max_sessions,  # Use max_sessions from the instance
+            max_session_permit=self.max_sessions,
             rate_limiter=RateLimiter(
                 base_delay=(0.5, 1.0),
                 max_delay=10.0
@@ -33,7 +32,7 @@ class AICrawler(BaseModel):
         )
         self.run_config = CrawlerRunConfig(
             cache_mode=CacheMode.BYPASS,
-            stream=True  # Enable streaming mode
+            stream=True
         )
         os.makedirs(self.output_dir, exist_ok=True)
 
@@ -50,40 +49,33 @@ class AICrawler(BaseModel):
             print(f"Error fetching sitemap URLs: {e}")
             return []
 
-    def save_to_json(self, output: CrawlerOutput):
+    def save_to_json(self, url: str, content: str, success: bool):
         """Save CrawlerOutput to a JSON file."""
-        filename = os.path.join(self.output_dir, f"{hashlib.md5(str(output.url).encode()).hexdigest()}.json")
+        filename = os.path.join(self.output_dir, f"{hashlib.md5(url.encode()).hexdigest()}.json")
+        output = {
+            "url": url,
+            "timestamp": datetime.now().isoformat(),
+            "source": self.project_name,
+            "content": content,
+            "success": success
+        }
         with open(filename, "w") as f:
-            f.write(output.model_dump_json(indent=5))
+            json.dump(output, f, indent=5)
 
     async def process_url(self, url: str):
         """Process a single URL."""
         print(f"Processing URL: {url}")
         if url.endswith("sitemap.xml"):
             sitemap_urls = self.fetch_sitemap_urls(url)
-    
+
             async with AsyncWebCrawler() as crawler:
                 async for result in await crawler.arun_many(
                         urls=sitemap_urls,
-                        dispatcher=self.dispatcher,  # Use the dispatcher instance
+                        dispatcher=self.dispatcher,
                         config=self.run_config
                 ):
-                    output = CrawlerOutput(
-                        url=result.url,
-                        timestamp=datetime.now(),
-                        source=self.project_name,
-                        content=result.markdown,
-                        success=result.success,
-                    )
-                    self.save_to_json(output)
+                    self.save_to_json(result.url, result.markdown, result.success)
         else:
             async with AsyncWebCrawler() as crawler:
                 result = await crawler.arun(url=url)
-                output = CrawlerOutput(
-                    url=result.url,
-                    timestamp=datetime.now(),
-                    source=self.project_name,
-                    content=result.markdown,
-                    success=result.success,
-                )
-                self.save_to_json(output)
+                self.save_to_json(result.url, result.markdown, result.success)
