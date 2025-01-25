@@ -7,14 +7,17 @@ import json
 import os
 import datetime
 import hashlib
-from crawl4ai import AsyncWebCrawler, RateLimiter, CrawlerRunConfig, CacheMode
-from crawl4ai.async_dispatcher import SemaphoreDispatcher
+from crawl4ai import AsyncWebCrawler, RateLimiter, CrawlerRunConfig, CacheMode, BrowserConfig, CrawlerMonitor, DisplayMode
+from crawl4ai.async_dispatcher import SemaphoreDispatcher, MemoryAdaptiveDispatcher
 from time import sleep
 
 def chunk_list(lst, size):
     """Yield successive sublists of given size."""
     for i in range(0, len(lst), size):
         yield lst[i:i + size]
+
+
+
 
 class CrawlerOutput(BaseModel):
     class Config:
@@ -25,6 +28,8 @@ class CrawlerOutput(BaseModel):
     source: str
     content: str
     success: bool = True  # Defaults to True for successful crawls
+    
+
 
 class AICrawler:
     def __init__(self, output_dir: str = "./output", project_name: str = "ai_crawler", max_sessions: int = 5):
@@ -43,6 +48,16 @@ class AICrawler:
             cache_mode=CacheMode.BYPASS,
             stream=True
         )
+        self.browser_conf = BrowserConfig(
+            browser_type="chromium",
+            headless=False,
+            text_mode=True,
+            user_agent_mode="random",
+            light_mode=True,
+            verbose=True
+
+        )
+
         os.makedirs(self.output_dir, exist_ok=True)
 
     @staticmethod
@@ -73,20 +88,56 @@ class AICrawler:
 
     async def process_urls(self, urls: list[str]):
         print(f"Processing {len(urls)} urls")
+        browser_config = BrowserConfig(headless=True, verbose=False)
+        run_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS, 
+                                      check_robots_txt=True,
+                                      semaphore_count=self.max_sessions )
+
+        monitor=CrawlerMonitor(         # Optional monitoring
+                max_visible_rows=15,
+                display_mode=DisplayMode.DETAILED
+        )
+        rate_limiter=RateLimiter(       # Optional rate limiting
+                base_delay=(1.0, 2.0),
+                max_delay=30.0,
+                max_retries=2
+        ) 
+        md = MemoryAdaptiveDispatcher(
+            memory_threshold_percent=80.0,  # Pause if memory exceeds this
+            check_interval=1.0,             # How often to check memory
+            max_session_permit=10,          # Maximum concurrent tasks
+            rate_limiter=rate_limiter,
+            monitor=monitor
+        )
+        sd = SemaphoreDispatcher(
+            semaphore_count=self.max_sessions,
+            rate_limiter=rate_limiter,
+            monitor=monitor
+        )
         for chunk in chunk_list(urls, self.max_sessions):
-            results = await AsyncWebCrawler().arun_many(
-                urls=chunk,
-                config=CrawlerRunConfig(
-                    stream=False,
-                ),
-                rate_limiter=RateLimiter(       # Optional rate limiting
-                    base_delay=(1.0, 2.0),
-                    max_delay=30.0,
-                    max_retries=2
-                ),
-            )
-            for result in results:
-                self.save_to_json(result.url, result.markdown, result.success)
+        #     results = await AsyncWebCrawler(config=self.browser_conf).arun_many(
+        #         urls=chunk,
+        #         config=CrawlerRunConfig(
+        #             stream=False,
+        #         ),
+        #         rate_limiter=RateLimiter(       # Optional rate limiting
+        #             base_delay=(1.0, 2.0),
+        #             max_delay=30.0,
+        #             max_retries=2
+        #         ),
+        #     )
+        
+            async with AsyncWebCrawler(config=browser_config) as crawler:
+                results = await crawler.arun_many(
+                    chunk, 
+                    config=run_config,
+                    dispatcher=md
+                )
+                for result in results:
+                    if result.success:
+                        self.save_to_json(result.url, result.markdown, result.success)
+                    else:
+                        print(f"Failed: {result.url}")
 
     async def process_url(self, url: str):
         """Process a single URL."""
