@@ -11,6 +11,9 @@ from crawl4ai import AsyncWebCrawler, RateLimiter, CrawlerRunConfig, CacheMode
 from crawl4ai.async_dispatcher import SemaphoreDispatcher
 
 class CrawlerOutput(BaseModel):
+    class Config:
+        arbitrary_types_allowed=True
+
     url: HttpUrl
     timestamp: datetime
     source: str
