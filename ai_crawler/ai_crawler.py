@@ -94,7 +94,8 @@ class AICrawler:
         output = {
             "url": url,
             "timestamp": datetime.datetime.now().isoformat(),
-            "source": self.project_name,
+            "source": url,
+            "creator": self.project_name,
             "content": content,
             "success": success
         }
