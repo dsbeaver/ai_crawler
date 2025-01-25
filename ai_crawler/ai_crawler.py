@@ -9,6 +9,8 @@ import datetime
 import hashlib
 from crawl4ai import AsyncWebCrawler, RateLimiter, CrawlerRunConfig, CacheMode, BrowserConfig, CrawlerMonitor, DisplayMode
 from crawl4ai.async_dispatcher import SemaphoreDispatcher, MemoryAdaptiveDispatcher
+from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
+from crawl4ai.content_filter_strategy import PruningContentFilter
 from time import sleep
 
 def chunk_list(lst, size):
@@ -44,18 +46,31 @@ class AICrawler:
                 max_delay=10.0
             )
         )
-        self.run_config = CrawlerRunConfig(
-            cache_mode=CacheMode.BYPASS,
-            stream=True
-        )
-        self.browser_conf = BrowserConfig(
-            browser_type="chromium",
-            headless=False,
-            text_mode=True,
-            user_agent_mode="random",
-            light_mode=True,
-            verbose=True
 
+        self.markdown_generator= DefaultMarkdownGenerator(
+            content_filter=PruningContentFilter(threshold=0.6),
+            options={"ignore_links": True}
+        ) 
+        self.browser_config = BrowserConfig(
+            browser_type="chromium",
+            headless=True, 
+            verbose=False
+        )
+        self.run_config = CrawlerRunConfig(
+            cache_mode=CacheMode.BYPASS, 
+            check_robots_txt=True,
+            semaphore_count=self.max_sessions,
+            markdown_generator=self.markdown_generator
+        )
+
+        self.monitor=CrawlerMonitor(         # Optional monitoring
+                max_visible_rows=15,
+                display_mode=DisplayMode.DETAILED
+        )
+        self.rate_limiter=RateLimiter(       # Optional rate limiting
+                base_delay=(1.0, 2.0),
+                max_delay=30.0,
+                max_retries=2
         )
 
         os.makedirs(self.output_dir, exist_ok=True)
@@ -88,54 +103,31 @@ class AICrawler:
 
     async def process_urls(self, urls: list[str]):
         print(f"Processing {len(urls)} urls")
-        browser_config = BrowserConfig(headless=True, verbose=False)
-        run_config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS, 
-                                      check_robots_txt=True,
-                                      semaphore_count=self.max_sessions )
-
-        monitor=CrawlerMonitor(         # Optional monitoring
-                max_visible_rows=15,
-                display_mode=DisplayMode.DETAILED
-        )
-        rate_limiter=RateLimiter(       # Optional rate limiting
-                base_delay=(1.0, 2.0),
-                max_delay=30.0,
-                max_retries=2
-        ) 
+         
         md = MemoryAdaptiveDispatcher(
             memory_threshold_percent=80.0,  # Pause if memory exceeds this
             check_interval=1.0,             # How often to check memory
             max_session_permit=10,          # Maximum concurrent tasks
-            rate_limiter=rate_limiter,
-            monitor=monitor
+            rate_limiter=self.rate_limiter,
+            monitor=self.monitor
         )
         sd = SemaphoreDispatcher(
             semaphore_count=self.max_sessions,
-            rate_limiter=rate_limiter,
-            monitor=monitor
+            rate_limiter=self.rate_limiter,
+            monitor=self.monitor
         )
+
         for chunk in chunk_list(urls, self.max_sessions):
-        #     results = await AsyncWebCrawler(config=self.browser_conf).arun_many(
-        #         urls=chunk,
-        #         config=CrawlerRunConfig(
-        #             stream=False,
-        #         ),
-        #         rate_limiter=RateLimiter(       # Optional rate limiting
-        #             base_delay=(1.0, 2.0),
-        #             max_delay=30.0,
-        #             max_retries=2
-        #         ),
-        #     )
-        
-            async with AsyncWebCrawler(config=browser_config) as crawler:
+            async with AsyncWebCrawler(config=self.browser_config) as crawler:
                 results = await crawler.arun_many(
                     chunk, 
-                    config=run_config,
+                    config=self.run_config,
                     dispatcher=md
                 )
                 for result in results:
                     if result.success:
-                        self.save_to_json(result.url, result.markdown, result.success)
+                        md_object = result.markdown_v2
+                        self.save_to_json(result.url, md_object.fit_markdown, result.success)
                     else:
                         print(f"Failed: {result.url}")
 
@@ -146,8 +138,9 @@ class AICrawler:
             sitemap_urls = self.fetch_sitemap_urls(url)
             await self.process_urls(sitemap_urls)
         else:
-            async with AsyncWebCrawler() as crawler:
-                result = await crawler.arun(url=url)
-                self.save_to_json(result.url, result.markdown, result.success)
+            async with AsyncWebCrawler(config=self.browser_config) as crawler:
+                result = await crawler.arun(url=url, config=self.run_config)
+                md_object = result.markdown_v2
+                self.save_to_json(result.url, md_object.fit_markdown, result.success)
 
     
