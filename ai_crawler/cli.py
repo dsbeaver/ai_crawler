@@ -63,7 +63,7 @@ async def daemon_mode(redis_host, redis_port, redis_queue, failed_queue, output_
                 failure_message = {
                     "url": url,
                     "error": str(e),
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.datetime.now().isoformat(),
                 }
                 r.lpush(failed_queue, json.dumps(failure_message))
         else:
