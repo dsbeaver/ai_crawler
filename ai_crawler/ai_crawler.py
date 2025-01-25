@@ -9,6 +9,12 @@ import datetime
 import hashlib
 from crawl4ai import AsyncWebCrawler, RateLimiter, CrawlerRunConfig, CacheMode
 from crawl4ai.async_dispatcher import SemaphoreDispatcher
+from time import sleep
+
+def chunk_list(lst, size):
+    """Yield successive sublists of given size."""
+    for i in range(0, len(lst), size):
+        yield lst[i:i + size]
 
 class CrawlerOutput(BaseModel):
     class Config:
@@ -65,20 +71,32 @@ class AICrawler:
         with open(filename, "w") as f:
             json.dump(output, f, indent=5)
 
+    async def process_urls(self, urls: list[str]):
+        print(f"Processing {len(urls)} urls")
+        for chunk in chunk_list(urls, self.max_sessions):
+            results = await AsyncWebCrawler().arun_many(
+                urls=chunk,
+                config=CrawlerRunConfig(
+                    stream=False,
+                ),
+                rate_limiter=RateLimiter(       # Optional rate limiting
+                    base_delay=(1.0, 2.0),
+                    max_delay=30.0,
+                    max_retries=2
+                ),
+            )
+            for result in results:
+                self.save_to_json(result.url, result.markdown, result.success)
+
     async def process_url(self, url: str):
         """Process a single URL."""
         print(f"Processing URL: {url}")
         if url.endswith("sitemap.xml"):
             sitemap_urls = self.fetch_sitemap_urls(url)
-
-            async with AsyncWebCrawler() as crawler:
-                async for result in await crawler.arun_many(
-                        urls=sitemap_urls,
-                        dispatcher=self.dispatcher,
-                        config=self.run_config
-                ):
-                    self.save_to_json(result.url, result.markdown, result.success)
+            await self.process_urls(sitemap_urls)
         else:
             async with AsyncWebCrawler() as crawler:
                 result = await crawler.arun(url=url)
                 self.save_to_json(result.url, result.markdown, result.success)
+
+    

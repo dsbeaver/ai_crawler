@@ -51,7 +51,7 @@ async def daemon_mode(redis_host, redis_port, redis_queue, failed_queue, output_
     logging.info(f"Starting daemon mode with Redis at {redis_host}:{redis_port}, queue: {redis_queue}")
     r = redis.StrictRedis(host=redis_host, port=redis_port, decode_responses=True)
     crawler = AICrawler(output_dir=output_dir, project_name=project_name, max_sessions=max_sessions)
-
+    logging.info(f"ai_crawler demon started.")
     while True:
         url = r.rpop(redis_queue)  # Fetch URL from Redis queue
         if url:
